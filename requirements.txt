@@ -1,0 +1,7 @@
+polyline
+flask
+matplotlib==2.2.2
+numpy==1.15.4
+requests==2.20.1
+Shapely==1.6.4.post2
+utm==0.4.2
