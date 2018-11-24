@@ -11,6 +11,7 @@ state_fleet = Fleet()
 state_fleet.add_route(1, tram_stations[0])
 state_fleet.add_route(2, tram_stations[1])
 
+
 @app.route("/api/bus", methods=["POST"])
 def add_passenger():
     content = request.json
@@ -23,7 +24,8 @@ def add_passenger():
 
 @app.route("/api/routes", methods=["GET"])
 def get_all_routes():
-    return jsonify(routes=state_fleet.get_all_routes())
+    routes = state_fleet.get_all_routes()
+    return jsonify(routes=[x.__dict__ for x in routes])
 
 
 if __name__ == "__main__":

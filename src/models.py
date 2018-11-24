@@ -40,7 +40,7 @@ class Fleet:
             return True
         else:
             return False
-    def get_all_routes(self, ):
+    def get_all_routes(self):
         return self.routes
 
 # Represents a bus
