@@ -1,7 +1,8 @@
 import datetime
 import random
-
+import polyline
 from routing import *
+from data import *
 
 
 class Point:
@@ -20,6 +21,9 @@ class Fleet:
         self.routes = []
         pass
 
+    def reset(self):
+        self.routes = []
+
     def add_route(self, route_id, loc):
         self.routes.append(Route(route_id, loc))
 
@@ -35,18 +39,27 @@ class Fleet:
             node, (dev, new_r) = mindev
             print(new_r)
             minrdev_route.stops = new_r
+            minrdev_route.update_geometry()
             minrdev_route.users_waiting.append(user_id)
             minrdev_route.user2stop[user_id] = node
+            new_user_geometry = get_route([user_loc, node])['routes'][0]['geometry']
+            minrdev_route.user_geometry.append(new_user_geometry)
             return True
         else:
             return False
     def get_all_routes(self):
         return self.routes
+    
+    # to be called periodically
+    def move(self, ):
+        for r in self.routes:
+            r.check_availability()
+            r.move() 
 
 # Represents a bus
 class Route:
 
-    distance_threshold = 10 * 60
+    distance_threshold = 6 * 60
     user_walk_time = 5*60
     maximum_riding_time = 15 * 60 # SLA?
 
@@ -58,6 +71,8 @@ class Route:
         self.users_waiting = []
         self.user2stop = dict()
         self.stops = []
+        self.geometry = polyline.encode([self.loc])
+        self.user_geometry = []
 
     def acceptable_deviation(self, deviation):
         if len(self.users_in) == 0:
@@ -67,6 +82,9 @@ class Route:
 
     def move(self, new_loc):
         self.loc = new_loc
+
+    def update_geometry(self, ):
+        self.geometry = get_route([self.loc] + self.stops)['routes'][0]['geometry']
 
     def set_blocked(self, new_status):
         self.available = new_status
@@ -93,3 +111,57 @@ class Route:
             return None
         else:
             return (proposal, results[proposal])
+
+    def set_blocked(self, new_status):
+        self.available = status 
+
+    def check_availability(self, ):
+        if len(self.users_in) == 0:
+            return True
+        oldest_user = min(self.users_in, key = lambda x: x[1])
+        if len(self.stops) > 0:
+            tram_routing_time = list(map(lambda x: get_distance(self.stops[-1], x), tram_stations))
+        else:
+            tram_routing_time = list(map(lambda x: get_distance(self.loc, x), tram_stations))
+
+        closest_tram = tram_stations[tram_routing_time.index(min(tram_routing_time))]
+        proba =  ((datetime.datetime.now() - oldest_user[1]).total_seconds() - min(tram_routing_time))/(self.maximum_riding_time)
+        if proba > 0.8 or len(self.stops) <= 1:
+            self.stops.append(closest_tram)
+            self.update_geometry()
+            return False
+        else:
+            True
+    
+    def move(self, ):
+        if not self.available:
+            pass
+        if len(self.stops) > 0:
+            
+            route = polyline.decode(self.geometry)
+            print("Next stop: ", np.round(self.stops[0], decimals=3), "Cur location: ", np.round(self.loc, decimals=3))
+            if np.array_equal(np.round(self.loc, decimals=3), np.round(self.stops[0], decimals=3)):
+                if len(self.stops) > 1:
+                    self.stops = self.stops[1:]
+                    self.update_geometry()
+                else:
+                    self.stops = [self.loc]
+                    self.update_geometry()
+                self.users_in.append((random.randint(0,1e4), datetime.datetime.now()))
+                self.user_geometry = list(filter(lambda x: not (polyline.decode(x)[-1] == x), self.user_geometry))
+                return None
+            
+            self.loc = route[0]
+            
+            if len(route) > 1:
+                self.geometry = polyline.encode(route[1:])
+            else:
+                self.geometry = polyline.encode([self.loc])
+        else:
+            pass # Move to the highest density 
+
+    def acceptable_deviation(self, deviation):
+        if len(self.users_in) == 0:
+            return True
+        oldest_user = min(self.users_in, key = lambda x: x[1])
+        return (datetime.datetime.now() - oldest_user[1]).total_seconds + deviation < maximum_riding_time 

@@ -1,5 +1,6 @@
 polyline
 flask
+flask-cors
 matplotlib==2.2.2
 numpy==1.15.4
 requests==2.20.1
